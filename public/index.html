@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a73e8">
+  <title>Resume Scoring</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+  <!-- Top App Bar -->
+  <header class="top-app-bar">
+    <div class="app-icon">
+      <span class="material-symbols-rounded icon-filled">description</span>
+    </div>
+    <div>
+      <div class="app-title">Resume Scoring</div>
+      <div class="app-subtitle">AI-powered candidate evaluation</div>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="two-column-layout">
+
+      <!-- LEFT: Job Information Card -->
+      <section>
+        <div class="md-card md-card-elevated">
+          <div class="md-card-header">
+            <h2>
+              <span class="material-symbols-rounded">work</span>
+              Job Details
+            </h2>
+          </div>
+          <div class="md-card-body">
+            <div class="md-text-field">
+              <label for="jobTitle">Job Title</label>
+              <input type="text" id="jobTitle" placeholder="e.g., Senior Software Engineer">
+            </div>
+            <div class="md-text-field">
+              <label for="jobDescription">Job Description</label>
+              <textarea id="jobDescription"
+                placeholder="Paste the full job description here including responsibilities, requirements, qualifications..."></textarea>
+              <div class="helper-text">Include all key requirements for better scoring accuracy</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT: Upload Card -->
+      <section>
+        <div class="md-card md-card-elevated">
+          <div class="md-card-header">
+            <h2>
+              <span class="material-symbols-rounded">upload_file</span>
+              Upload Resumes
+            </h2>
+          </div>
+          <div class="md-card-body">
+            <div class="upload-area" id="dropArea">
+              <span class="material-symbols-rounded upload-icon">cloud_upload</span>
+              <h3>Select resume files</h3>
+              <p class="hint">PDF, DOC, DOCX, TXT, HTML, RTF &bull; Max 10 files</p>
+              <input type="file" id="fileInput" multiple
+                accept=".pdf,.doc,.docx,.txt,.html,.htm,.rtf" hidden>
+              <button id="browseBtn" class="md-btn md-btn-tonal">
+                <span class="material-symbols-rounded">folder_open</span>
+                Browse Files
+              </button>
+            </div>
+
+            <div id="fileList" class="file-list"></div>
+
+            <button id="uploadBtn" class="md-btn md-btn-filled md-btn-wide" disabled>
+              <span class="material-symbols-rounded">cloud_upload</span>
+              Upload
+            </button>
+            <div id="uploadStatus" class="status-message"></div>
+          </div>
+        </div>
+
+        <!-- Process Button -->
+        <div class="process-area" style="margin-top: 16px;">
+          <button id="processBtn" class="md-btn md-btn-filled md-fab-extended md-btn-wide md-btn-success" disabled>
+            <span class="material-symbols-rounded">auto_awesome</span>
+            Process with AI
+          </button>
+          <div id="processStatus" class="status-message"></div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Results Section -->
+    <section id="resultsSection" class="results-section" style="display:none;">
+      <div class="section-header">
+        <span class="material-symbols-rounded icon-filled">leaderboard</span>
+        <h2>Candidate Scores</h2>
+      </div>
+      <div id="resultsContainer" class="results-grid"></div>
+    </section>
+  </main>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

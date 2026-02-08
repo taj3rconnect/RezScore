@@ -1,0 +1,22 @@
+{
+  "name": "resume-scoring",
+  "version": "1.0.0",
+  "description": "AI-powered resume scoring against job descriptions",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@iarna/rtf-to-html": "^1.1.0",
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "mammoth": "^1.8.0",
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^1.1.1",
+    "pdfkit": "^0.17.2",
+    "word-extractor": "^1.0.4"
+  }
+}

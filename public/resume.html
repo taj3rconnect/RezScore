@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a73e8">
+  <title>Resume Detail</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+  <!-- Top App Bar -->
+  <header class="top-app-bar">
+    <div class="app-icon">
+      <span class="material-symbols-rounded icon-filled">person</span>
+    </div>
+    <div>
+      <div class="app-title" id="candidateName">Loading...</div>
+      <div class="app-subtitle">
+        <span id="fileName"></span> &bull;
+        Score: <span id="scoreValue">--</span>/100
+      </div>
+    </div>
+  </header>
+
+  <main class="container resume-detail">
+    <!-- Action Bar -->
+    <div class="action-bar">
+      <div class="action-bar-left">
+        <div class="action-panel-inline">
+          <h3>Scoring Rationale</h3>
+          <p id="reasoning">Loading...</p>
+        </div>
+      </div>
+      <div class="action-bar-right">
+        <button id="cleanBtn" class="md-btn md-btn-filled md-fab-extended">
+          <span class="material-symbols-rounded">auto_fix_high</span>
+          Clean
+        </button>
+        <button id="downloadBtn" class="md-btn md-btn-tonal md-fab-extended" style="display:none;">
+          <span class="material-symbols-rounded">picture_as_pdf</span>
+          Download PDF
+        </button>
+        <div id="cleanStatus" class="status-message"></div>
+      </div>
+    </div>
+
+    <!-- Resume Panels -->
+    <div class="two-column-layout" id="resumePanels">
+      <!-- LEFT: Original Resume -->
+      <section class="left-column">
+        <div class="md-card md-card-elevated">
+          <div class="md-card-header">
+            <h2>
+              <span class="material-symbols-rounded">article</span>
+              Original Resume
+            </h2>
+          </div>
+          <div class="md-card-body">
+            <pre id="resumeText" class="resume-pre">Loading...</pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT: Cleaned Resume (hidden until cleaned) -->
+      <section class="right-column" id="cleanedPanel" style="display:none;">
+        <div class="md-card md-card-elevated">
+          <div class="md-card-header">
+            <h2>
+              <span class="material-symbols-rounded">auto_awesome</span>
+              Cleaned Resume
+              <span class="diff-legend">
+                <span class="legend-added">Added/Changed</span>
+                <span class="legend-removed">Removed</span>
+              </span>
+            </h2>
+          </div>
+          <div class="md-card-body">
+            <div id="cleanedText" class="resume-pre resume-diff"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/js/resume.js"></script>
+</body>
+</html>
