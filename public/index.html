@@ -46,9 +46,15 @@
               <input type="text" id="jobTitle" placeholder="e.g., Senior Software Engineer">
             </div>
             <div class="md-text-field">
-              <label for="jobDescription">Job Description</label>
+              <div class="label-with-action">
+                <label for="jobDescription">Job Description</label>
+                <button type="button" id="generateJdBtn" class="md-btn md-btn-tonal md-btn-sm" disabled>
+                  <span class="material-symbols-rounded">auto_awesome</span>
+                  Generate with AI
+                </button>
+              </div>
               <textarea id="jobDescription"
-                placeholder="Paste the full job description here including responsibilities, requirements, qualifications..."></textarea>
+                placeholder="Paste the full job description here, or enter a job title above and click 'Generate with AI'..."></textarea>
               <div class="helper-text">Include all key requirements for better scoring accuracy</div>
             </div>
 
@@ -85,9 +91,9 @@
             <div class="upload-area" id="dropArea">
               <span class="material-symbols-rounded upload-icon">cloud_upload</span>
               <h3>Select resume files</h3>
-              <p class="hint">PDF, DOC, DOCX, TXT, HTML, RTF &bull; Max 10 files</p>
+              <p class="hint">PDF, DOC, DOCX, TXT, HTML, RTF, ZIP &bull; Max 100 files</p>
               <input type="file" id="fileInput" multiple
-                accept=".pdf,.doc,.docx,.txt,.html,.htm,.rtf" hidden>
+                accept=".pdf,.doc,.docx,.txt,.html,.htm,.rtf,.zip" hidden>
               <button id="browseBtn" class="md-btn md-btn-tonal">
                 <span class="material-symbols-rounded">folder_open</span>
                 Browse Files

@@ -271,6 +271,19 @@ body {
   letter-spacing: 0.4px;
 }
 
+/* --- Label with inline action --- */
+
+.label-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.label-with-action label {
+  margin-bottom: 0;
+}
+
 /* --- Material Buttons --- */
 
 .md-btn {
@@ -351,6 +364,18 @@ body {
   background: transparent;
   color: var(--md-primary);
   padding: 0 12px;
+}
+
+/* Small */
+.md-btn-sm {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 12px;
+  gap: 4px;
+}
+
+.md-btn-sm .material-symbols-rounded {
+  font-size: 16px;
 }
 
 /* FAB (Extended) */

@@ -17,6 +17,7 @@ const Database = require('better-sqlite3');
 const { NodeSSH } = require('node-ssh');
 const { exec, spawn } = require('child_process');
 const os = require('os');
+const AdmZip = require('adm-zip');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -125,7 +126,7 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ['.pdf', '.doc', '.docx', '.txt', '.html', '.htm', '.rtf'];
+  const allowedTypes = ['.pdf', '.doc', '.docx', '.txt', '.html', '.htm', '.rtf', '.zip'];
   const ext = path.extname(file.originalname).toLowerCase();
   if (allowedTypes.includes(ext)) {
     cb(null, true);
@@ -349,44 +350,106 @@ app.use('/api', generalLimiter);
 // --- API Endpoints ---
 
 // Upload resumes
-app.post('/api/upload', upload.array('resumes', 10), async (req, res) => {
+const RESUME_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.html', '.htm', '.rtf'];
+
+async function processOneFile(filePath, originalName) {
+  const id = Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+  try {
+    const rawText = await extractText(filePath, originalName);
+    if (!rawText || rawText.trim().length < 50) {
+      return { id, originalName, success: false, error: 'Could not extract sufficient text from file (possibly scanned/image-based)' };
+    }
+    stmts.insertResume.run(id, originalName, path.extname(originalName).toLowerCase(), rawText);
+    return { id, originalName, success: true };
+  } catch (err) {
+    return { id, originalName, success: false, error: err.message };
+  }
+}
+
+app.post('/api/upload', upload.array('resumes', 100), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
     const results = [];
+
     for (const file of req.files) {
-      const id =
-        Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
-      try {
-        const rawText = await extractText(file.path, file.originalname);
+      const ext = path.extname(file.originalname).toLowerCase();
 
-        if (!rawText || rawText.trim().length < 50) {
-          results.push({
-            id,
-            originalName: file.originalname,
-            success: false,
-            error: 'Could not extract sufficient text from file (possibly scanned/image-based)',
-          });
-          continue;
+      if (ext === '.zip') {
+        // Extract ZIP and process each resume inside
+        try {
+          const zip = new AdmZip(file.path);
+          const entries = zip.getEntries();
+
+          for (const entry of entries) {
+            if (entry.isDirectory) continue;
+            const entryName = entry.entryName;
+            // Skip hidden files and __MACOSX
+            if (entryName.startsWith('.') || entryName.startsWith('__MACOSX') || entryName.includes('/__MACOSX/') || entryName.includes('/.')) continue;
+
+            const entryExt = path.extname(entryName).toLowerCase();
+            if (!RESUME_EXTENSIONS.includes(entryExt)) continue;
+
+            if (results.length >= 100) break;
+
+            // Write entry to temp file for extraction
+            const tmpPath = path.join(uploadsDir, `zip-${Date.now()}-${Math.random().toString(36).substr(2, 6)}${entryExt}`);
+            fs.writeFileSync(tmpPath, entry.getData());
+            try {
+              const result = await processOneFile(tmpPath, path.basename(entryName));
+              results.push(result);
+            } finally {
+              fs.unlink(tmpPath, () => {});
+            }
+          }
+        } catch (zipErr) {
+          results.push({ id: Date.now().toString(36), originalName: file.originalname, success: false, error: `ZIP extraction failed: ${zipErr.message}` });
         }
-
-        stmts.insertResume.run(id, file.originalname, path.extname(file.originalname).toLowerCase(), rawText);
-        results.push({ id, originalName: file.originalname, success: true });
-      } catch (err) {
-        results.push({
-          id,
-          originalName: file.originalname,
-          success: false,
-          error: err.message,
-        });
-      } finally {
-        fs.unlink(file.path, () => {});
+      } else {
+        // Regular resume file
+        if (results.length >= 100) break;
+        const result = await processOneFile(file.path, file.originalname);
+        results.push(result);
       }
+
+      fs.unlink(file.path, () => {});
     }
 
     res.json({ uploaded: results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Generate job description from title
+app.post('/api/generate-jd', aiLimiter, express.json(), async (req, res) => {
+  const { jobTitle } = req.body || {};
+  if (!jobTitle || !jobTitle.trim()) {
+    return res.status(400).json({ error: 'Job title is required' });
+  }
+
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2048,
+      messages: [
+        {
+          role: 'user',
+          content: `Generate a professional, detailed job description for the role: "${jobTitle.trim()}"
+
+Include these sections:
+- About the Role (2-3 sentence summary)
+- Responsibilities (6-8 bullet points)
+- Requirements (5-7 bullet points covering skills, experience, education)
+- Nice-to-Have (3-4 bullet points)
+
+Write in a professional but engaging tone. Use plain text with section headers and bullet points (use "- " for bullets). Do NOT use markdown formatting like ** or ##. Return ONLY the job description text, no preamble.`,
+        },
+      ],
+    });
+    res.json({ description: message.content[0].text.trim() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -946,7 +1009,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_COUNT') {
-      return res.status(400).json({ error: 'Maximum 10 files allowed' });
+      return res.status(400).json({ error: 'Maximum 100 files allowed' });
     }
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: 'File too large (max 10MB)' });

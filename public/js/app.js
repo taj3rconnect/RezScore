@@ -40,8 +40,8 @@ browseBtn.addEventListener('click', () => {
 
 fileInput.addEventListener('change', (e) => {
   const files = Array.from(e.target.files);
-  if (files.length > 10) {
-    alert('Maximum 10 files allowed. Please select fewer files.');
+  if (files.length > 100) {
+    alert('Maximum 100 files allowed. Please select fewer files.');
     fileInput.value = '';
     return;
   }
@@ -117,6 +117,43 @@ uploadBtn.addEventListener('click', async () => {
   } finally {
     uploadBtn.innerHTML = '<span class="material-symbols-rounded">cloud_upload</span> Upload';
     uploadBtn.disabled = false;
+  }
+});
+
+// --- Generate JD with AI ---
+const generateJdBtn = document.getElementById('generateJdBtn');
+const jobTitleInput = document.getElementById('jobTitle');
+const jobDescriptionInput = document.getElementById('jobDescription');
+
+jobTitleInput.addEventListener('input', () => {
+  generateJdBtn.disabled = !jobTitleInput.value.trim();
+});
+
+generateJdBtn.addEventListener('click', async () => {
+  const title = jobTitleInput.value.trim();
+  if (!title) return;
+
+  if (jobDescriptionInput.value.trim() && !confirm('This will replace the current job description. Continue?')) {
+    return;
+  }
+
+  generateJdBtn.disabled = true;
+  generateJdBtn.innerHTML = '<span class="spinner spinner-dark" style="width:14px;height:14px;border-width:2px;"></span> Generating...';
+
+  try {
+    const response = await authFetch('/api/generate-jd', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobTitle: title }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Generation failed');
+    jobDescriptionInput.value = data.description;
+  } catch (err) {
+    alert('Failed to generate job description: ' + err.message);
+  } finally {
+    generateJdBtn.disabled = false;
+    generateJdBtn.innerHTML = '<span class="material-symbols-rounded">auto_awesome</span> Generate with AI';
   }
 });
 
