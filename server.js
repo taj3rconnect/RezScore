@@ -73,6 +73,7 @@ db.exec(`
 // Migrations for P2 columns
 try { db.exec('ALTER TABLE resumes ADD COLUMN sub_scores TEXT'); } catch (e) { /* column exists */ }
 try { db.exec('ALTER TABLE sessions ADD COLUMN criteria TEXT'); } catch (e) { /* column exists */ }
+try { db.exec('ALTER TABLE resumes ADD COLUMN tag TEXT'); } catch (e) { /* column exists */ }
 
 // JD templates table
 db.exec(`
@@ -116,6 +117,9 @@ const stmts = {
   `),
   getSession: db.prepare('SELECT * FROM sessions WHERE id = ?'),
   updateResumeName: db.prepare('UPDATE resumes SET candidate_name = ? WHERE id = ?'),
+  updateResumeTag: db.prepare('UPDATE resumes SET tag = ? WHERE id = ?'),
+  deleteSessionResumes: db.prepare('DELETE FROM session_resumes WHERE session_id = ?'),
+  deleteSession: db.prepare('DELETE FROM sessions WHERE id = ?'),
   insertTemplate: db.prepare('INSERT INTO jd_templates (id, title, description) VALUES (?, ?, ?)'),
   getTemplates: db.prepare('SELECT * FROM jd_templates ORDER BY created_at DESC'),
   deleteTemplate: db.prepare('DELETE FROM jd_templates WHERE id = ?'),
@@ -605,6 +609,7 @@ app.get('/api/resume/:id', (req, res) => {
     reasoning: resume.reasoning,
     subScores,
     cleanedText: resume.cleaned_text,
+    tag: resume.tag || null,
   });
 });
 
@@ -619,6 +624,40 @@ app.patch('/api/resume/:id/name', express.json(), (req, res) => {
 
   stmts.updateResumeName.run(candidateName.trim(), req.params.id);
   res.json({ candidateName: candidateName.trim() });
+});
+
+// Update candidate tag
+app.patch('/api/resume/:id/tag', express.json(), (req, res) => {
+  const { tag } = req.body || {};
+  const validTags = ['shortlist', 'maybe', 'reject', null];
+  if (!validTags.includes(tag)) {
+    return res.status(400).json({ error: 'Tag must be shortlist, maybe, reject, or null' });
+  }
+  const resume = stmts.getResume.get(req.params.id);
+  if (!resume) return res.status(404).json({ error: 'Resume not found' });
+
+  stmts.updateResumeTag.run(tag, req.params.id);
+  res.json({ tag });
+});
+
+// Bulk tag resumes
+const bulkUpdateTags = db.transaction((resumeIds, tag) => {
+  for (const id of resumeIds) {
+    stmts.updateResumeTag.run(tag, id);
+  }
+});
+
+app.post('/api/resumes/bulk-tag', express.json(), (req, res) => {
+  const { resumeIds, tag } = req.body || {};
+  const validTags = ['shortlist', 'maybe', 'reject', null];
+  if (!Array.isArray(resumeIds) || resumeIds.length === 0) {
+    return res.status(400).json({ error: 'resumeIds array is required' });
+  }
+  if (!validTags.includes(tag)) {
+    return res.status(400).json({ error: 'Tag must be shortlist, maybe, reject, or null' });
+  }
+  bulkUpdateTags(resumeIds, tag);
+  res.json({ updated: resumeIds.length, tag });
 });
 
 // Clean resume
@@ -734,6 +773,7 @@ app.get('/api/sessions/:id', (req, res) => {
         reasoning: r.reasoning,
         subScores,
         originalName: r.original_name,
+        tag: r.tag || null,
       };
     }),
   });
@@ -799,6 +839,17 @@ app.get('/api/sessions/:id/export/csv', (req, res) => {
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(csvRows.join('\r\n'));
+});
+
+// Delete a session
+app.delete('/api/sessions/:id', (req, res) => {
+  const session = stmts.getSession.get(req.params.id);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  stmts.deleteSessionResumes.run(req.params.id);
+  stmts.deleteSession.run(req.params.id);
+  res.json({ success: true });
 });
 
 // Compare candidates

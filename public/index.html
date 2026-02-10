@@ -153,12 +153,56 @@
           Export CSV
         </button>
       </div>
+      <div id="filterToolbar" class="filter-toolbar" style="display:none;">
+        <div class="filter-search">
+          <span class="material-symbols-rounded">search</span>
+          <input type="text" id="filterSearch" placeholder="Search by name or filename...">
+        </div>
+        <div class="filter-group">
+          <label>Score:</label>
+          <input type="number" id="filterScoreMin" placeholder="Min" min="0" max="100">
+          <span class="filter-dash">&ndash;</span>
+          <input type="number" id="filterScoreMax" placeholder="Max" min="0" max="100">
+        </div>
+        <div class="filter-group">
+          <label>Tag:</label>
+          <select id="filterTag">
+            <option value="">All</option>
+            <option value="shortlist">Shortlist</option>
+            <option value="maybe">Maybe</option>
+            <option value="reject">Reject</option>
+            <option value="untagged">Untagged</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Sort:</label>
+          <select id="filterSort">
+            <option value="score-desc">Score &#8595;</option>
+            <option value="score-asc">Score &#8593;</option>
+            <option value="name-asc">Name A&#8594;Z</option>
+            <option value="name-desc">Name Z&#8594;A</option>
+          </select>
+        </div>
+        <button id="filterClear" class="md-btn md-btn-text md-btn-sm">Clear</button>
+        <span id="filterCount" class="filter-count"></span>
+      </div>
       <div id="resultsContainer" class="results-grid"></div>
       <div id="compareBar" class="compare-bar" style="display:none;">
         <span id="compareCount">0 selected</span>
+        <div class="bulk-actions">
+          <button class="md-btn md-btn-tonal md-btn-sm bulk-tag-btn" data-tag="shortlist">
+            <span class="material-symbols-rounded">thumb_up</span> Shortlist
+          </button>
+          <button class="md-btn md-btn-tonal md-btn-sm bulk-tag-btn" data-tag="maybe">
+            <span class="material-symbols-rounded">help</span> Maybe
+          </button>
+          <button class="md-btn md-btn-tonal md-btn-sm bulk-tag-btn" data-tag="reject">
+            <span class="material-symbols-rounded">thumb_down</span> Reject
+          </button>
+        </div>
         <button id="compareBtn" class="md-btn md-btn-filled" disabled>
           <span class="material-symbols-rounded">compare_arrows</span>
-          Compare Selected
+          Compare
         </button>
         <button id="compareClearBtn" class="md-btn md-btn-text">Clear</button>
       </div>

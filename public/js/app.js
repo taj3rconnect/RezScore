@@ -25,6 +25,7 @@ let selectedFiles = [];
 let uploadedResumeIds = [];
 let currentSessionId = null;
 let compareSelection = new Set();
+let currentResults = [];
 
 // --- DOM references ---
 const fileInput = document.getElementById('fileInput');
@@ -533,6 +534,7 @@ function handleSSEEvent(data, eventType) {
       break;
     case 'complete':
       currentSessionId = data.sessionId;
+      currentResults = data.results.map(r => ({ ...r, tag: r.tag || null }));
       renderResults(data.results, data.sessionId);
       loadHistory();
       break;
@@ -558,33 +560,10 @@ function appendResultCard(r) {
   // Replace first skeleton card if one exists
   const skeleton = resultsContainer.querySelector('.skeleton-card');
 
-  let html;
-  if (r.error) {
-    html = `<div class="result-card result-error animate-in">
-      <div class="score-badge score-low">
-        <span class="material-symbols-rounded" style="font-size:24px;">error</span>
-      </div>
-      <div class="candidate-info">
-        <span class="candidate-name">${escapeHtml(r.originalName || 'Unknown')}</span>
-        <p class="reasoning" style="color:var(--md-error)">${escapeHtml(r.error)}</p>
-      </div>
-    </div>`;
-  } else {
-    const scoreClass = r.score >= 70 ? 'score-high' : r.score >= 50 ? 'score-mid' : 'score-low';
-    html = `<div class="result-card animate-in" data-id="${r.id}" draggable="true" onclick="openResume('${r.id}')">
-      <label class="compare-check" onclick="event.stopPropagation();">
-        <input type="checkbox" onchange="toggleCompare('${r.id}', this.checked)">
-        <span class="material-symbols-rounded">check_circle</span>
-      </label>
-      <div class="score-badge ${scoreClass}" data-score="${r.score}">0</div>
-      <div class="candidate-info">
-        <span class="candidate-name candidate-name-editable" data-id="${r.id}" ondblclick="event.stopPropagation(); startNameEdit(this);">${escapeHtml(r.candidateName)}<span class="material-symbols-rounded edit-hint" style="font-size:14px;">edit</span></span>
-        <span class="file-name">${escapeHtml(r.originalName)}</span>
-        <p class="reasoning">${escapeHtml(r.reasoning)}</p>
-        ${renderSubScoreBars(r.subScores)}
-      </div>
-    </div>`;
-  }
+  // Ensure tag field exists
+  if (!r.tag) r.tag = null;
+
+  const html = buildResultCardHtml(r, 0);
 
   if (skeleton) {
     skeleton.insertAdjacentHTML('afterend', html);
@@ -617,38 +596,21 @@ function renderResults(results, sessionId) {
   compareSelection.clear();
   updateCompareBar();
 
-  resultsContainer.innerHTML = results
-    .map((r, i) => {
-      if (r.error) {
-        return `<div class="result-card result-error animate-in" style="animation-delay:${i * 60}ms">
-        <div class="score-badge score-low">
-          <span class="material-symbols-rounded" style="font-size:24px;">error</span>
-        </div>
-        <div class="candidate-info">
-          <span class="candidate-name">${escapeHtml(r.originalName || 'Unknown')}</span>
-          <p class="reasoning" style="color:var(--md-error)">${escapeHtml(r.error)}</p>
-        </div>
-      </div>`;
-      }
+  // Store results for filtering
+  currentResults = results;
 
-      const scoreClass =
-        r.score >= 70 ? 'score-high' : r.score >= 50 ? 'score-mid' : 'score-low';
+  // Show filter toolbar
+  filterToolbar.style.display = 'flex';
 
-      return `<div class="result-card animate-in" data-id="${r.id}" draggable="true" onclick="openResume('${r.id}')" style="animation-delay:${i * 60}ms">
-      <label class="compare-check" onclick="event.stopPropagation();">
-        <input type="checkbox" onchange="toggleCompare('${r.id}', this.checked)">
-        <span class="material-symbols-rounded">check_circle</span>
-      </label>
-      <div class="score-badge ${scoreClass}" data-score="${r.score}">0</div>
-      <div class="candidate-info">
-        <span class="candidate-name candidate-name-editable" data-id="${r.id}" ondblclick="event.stopPropagation(); startNameEdit(this);">${escapeHtml(r.candidateName)}<span class="material-symbols-rounded edit-hint" style="font-size:14px;">edit</span></span>
-        <span class="file-name">${escapeHtml(r.originalName)}</span>
-        <p class="reasoning">${escapeHtml(r.reasoning)}</p>
-        ${renderSubScoreBars(r.subScores)}
-      </div>
-    </div>`;
-    })
-    .join('');
+  // Reset filters
+  filterSearch.value = '';
+  filterScoreMin.value = '';
+  filterScoreMax.value = '';
+  filterTag.value = '';
+  filterSort.value = 'score-desc';
+  filterCount.textContent = '';
+
+  resultsContainer.innerHTML = results.map((r, i) => buildResultCardHtml(r, i)).join('');
 
   // Animate score count-ups
   resultsContainer.querySelectorAll('.score-badge[data-score]').forEach((badge, i) => {
@@ -905,6 +867,9 @@ async function loadHistory() {
           <div class="history-meta">${date} &bull; ${s.resumeCount} resume(s)</div>
         </div>
         <div class="history-score">Top: ${s.topScore !== null ? s.topScore : '--'}</div>
+        <button class="history-delete" onclick="event.stopPropagation(); deleteSession('${s.id}')" title="Delete session">
+          <span class="material-symbols-rounded" style="font-size:18px;">delete</span>
+        </button>
       </div>`;
     }).join('');
   } catch (err) {
@@ -926,6 +891,18 @@ async function loadSession(sessionId) {
     setStatus(processStatus, `Loaded session from ${new Date(data.createdAt + 'Z').toLocaleDateString()}`, 'success');
   } catch (err) {
     showToast('Failed to load session: ' + err.message, 'error');
+  }
+}
+
+async function deleteSession(sessionId) {
+  if (!(await showConfirm('Delete this scoring session? This cannot be undone.'))) return;
+  try {
+    const response = await authFetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+    if (!response.ok) throw new Error('Delete failed');
+    showToast('Session deleted.', 'success');
+    loadHistory();
+  } catch (err) {
+    showToast('Failed to delete session: ' + err.message, 'error');
   }
 }
 
@@ -1179,3 +1156,205 @@ document.addEventListener('keydown', (e) => {
     toggleShortcutHelp();
   }
 });
+
+// --- Filter Toolbar ---
+const filterToolbar = document.getElementById('filterToolbar');
+const filterSearch = document.getElementById('filterSearch');
+const filterScoreMin = document.getElementById('filterScoreMin');
+const filterScoreMax = document.getElementById('filterScoreMax');
+const filterTag = document.getElementById('filterTag');
+const filterSort = document.getElementById('filterSort');
+const filterClear = document.getElementById('filterClear');
+const filterCount = document.getElementById('filterCount');
+
+let filterDebounceTimer = null;
+
+function debounceFilter() {
+  clearTimeout(filterDebounceTimer);
+  filterDebounceTimer = setTimeout(applyFilters, 300);
+}
+
+filterSearch.addEventListener('input', debounceFilter);
+filterScoreMin.addEventListener('input', debounceFilter);
+filterScoreMax.addEventListener('input', debounceFilter);
+filterTag.addEventListener('change', applyFilters);
+filterSort.addEventListener('change', applyFilters);
+
+filterClear.addEventListener('click', () => {
+  filterSearch.value = '';
+  filterScoreMin.value = '';
+  filterScoreMax.value = '';
+  filterTag.value = '';
+  filterSort.value = 'score-desc';
+  applyFilters();
+});
+
+function applyFilters() {
+  if (currentResults.length === 0) return;
+
+  const searchTerm = filterSearch.value.trim().toLowerCase();
+  const scoreMin = filterScoreMin.value ? parseInt(filterScoreMin.value) : null;
+  const scoreMax = filterScoreMax.value ? parseInt(filterScoreMax.value) : null;
+  const tagFilter = filterTag.value;
+  const sortBy = filterSort.value;
+
+  let filtered = currentResults.filter(r => {
+    if (r.error) return false;
+
+    // Search filter
+    if (searchTerm) {
+      const name = (r.candidateName || '').toLowerCase();
+      const file = (r.originalName || '').toLowerCase();
+      if (!name.includes(searchTerm) && !file.includes(searchTerm)) return false;
+    }
+
+    // Score filter
+    if (scoreMin !== null && (r.score == null || r.score < scoreMin)) return false;
+    if (scoreMax !== null && (r.score == null || r.score > scoreMax)) return false;
+
+    // Tag filter
+    if (tagFilter === 'untagged' && r.tag) return false;
+    if (tagFilter && tagFilter !== 'untagged' && r.tag !== tagFilter) return false;
+
+    return true;
+  });
+
+  // Sort
+  filtered.sort((a, b) => {
+    switch (sortBy) {
+      case 'score-asc': return (a.score || 0) - (b.score || 0);
+      case 'name-asc': return (a.candidateName || '').localeCompare(b.candidateName || '');
+      case 'name-desc': return (b.candidateName || '').localeCompare(a.candidateName || '');
+      default: return (b.score || 0) - (a.score || 0);
+    }
+  });
+
+  // Update count
+  filterCount.textContent = `Showing ${filtered.length} of ${currentResults.filter(r => !r.error).length}`;
+
+  // Re-render
+  renderFilteredResults(filtered);
+}
+
+function renderFilteredResults(results) {
+  resultsContainer.innerHTML = results.map((r, i) => buildResultCardHtml(r, i)).join('');
+
+  // Restore checkbox state
+  compareSelection.forEach(id => {
+    const cb = resultsContainer.querySelector(`.result-card[data-id="${id}"] .compare-check input`);
+    if (cb) cb.checked = true;
+  });
+
+  // Animate score count-ups
+  resultsContainer.querySelectorAll('.score-badge[data-score]').forEach((badge, i) => {
+    setTimeout(() => animateScoreCountUp(badge, parseInt(badge.dataset.score)), i * 60 + 100);
+  });
+}
+
+function buildResultCardHtml(r, i) {
+  if (r.error) {
+    return `<div class="result-card result-error animate-in" style="animation-delay:${i * 60}ms">
+      <div class="score-badge score-low">
+        <span class="material-symbols-rounded" style="font-size:24px;">error</span>
+      </div>
+      <div class="candidate-info">
+        <span class="candidate-name">${escapeHtml(r.originalName || 'Unknown')}</span>
+        <p class="reasoning" style="color:var(--md-error)">${escapeHtml(r.error)}</p>
+      </div>
+    </div>`;
+  }
+
+  const scoreClass = r.score >= 70 ? 'score-high' : r.score >= 50 ? 'score-mid' : 'score-low';
+  const activeTag = r.tag || '';
+
+  return `<div class="result-card animate-in" data-id="${r.id}" draggable="true" onclick="openResume('${r.id}')" style="animation-delay:${i * 60}ms">
+    <label class="compare-check" onclick="event.stopPropagation();">
+      <input type="checkbox" onchange="toggleCompare('${r.id}', this.checked)">
+      <span class="material-symbols-rounded">check_circle</span>
+    </label>
+    <div class="score-badge ${scoreClass}" data-score="${r.score}">0</div>
+    <div class="candidate-info">
+      <span class="candidate-name candidate-name-editable" data-id="${r.id}" ondblclick="event.stopPropagation(); startNameEdit(this);">${escapeHtml(r.candidateName)}<span class="material-symbols-rounded edit-hint" style="font-size:14px;">edit</span></span>
+      <span class="file-name">${escapeHtml(r.originalName)}</span>
+      <p class="reasoning">${escapeHtml(r.reasoning)}</p>
+      ${renderSubScoreBars(r.subScores)}
+      <div class="tag-pills" onclick="event.stopPropagation();">
+        <span class="tag-pill tag-shortlist${activeTag === 'shortlist' ? ' active' : ''}" onclick="toggleTag('${r.id}', 'shortlist', this)">Shortlist</span>
+        <span class="tag-pill tag-maybe${activeTag === 'maybe' ? ' active' : ''}" onclick="toggleTag('${r.id}', 'maybe', this)">Maybe</span>
+        <span class="tag-pill tag-reject${activeTag === 'reject' ? ' active' : ''}" onclick="toggleTag('${r.id}', 'reject', this)">Reject</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+// --- Tag Toggle ---
+async function toggleTag(resumeId, tag, el) {
+  const result = currentResults.find(r => r.id === resumeId);
+  if (!result) return;
+
+  const newTag = result.tag === tag ? null : tag;
+
+  try {
+    const response = await authFetch(`/api/resume/${resumeId}/tag`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tag: newTag }),
+    });
+    if (!response.ok) throw new Error('Failed to update tag');
+
+    result.tag = newTag;
+
+    // Update pills on the card
+    const card = resultsContainer.querySelector(`.result-card[data-id="${resumeId}"]`);
+    if (card) {
+      card.querySelectorAll('.tag-pill').forEach(pill => pill.classList.remove('active'));
+      if (newTag) {
+        const activePill = card.querySelector(`.tag-${newTag}`);
+        if (activePill) activePill.classList.add('active');
+      }
+    }
+  } catch (err) {
+    showToast('Failed to update tag: ' + err.message, 'error');
+  }
+}
+
+// --- Bulk Tag ---
+document.querySelectorAll('.bulk-tag-btn').forEach(btn => {
+  btn.addEventListener('click', () => bulkTag(btn.dataset.tag));
+});
+
+async function bulkTag(tag) {
+  if (compareSelection.size === 0) return;
+  const ids = Array.from(compareSelection);
+
+  try {
+    const response = await authFetch('/api/resumes/bulk-tag', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resumeIds: ids, tag }),
+    });
+    if (!response.ok) throw new Error('Bulk tag failed');
+
+    // Update local state
+    for (const id of ids) {
+      const r = currentResults.find(res => res.id === id);
+      if (r) r.tag = tag;
+    }
+
+    // Update UI
+    for (const id of ids) {
+      const card = resultsContainer.querySelector(`.result-card[data-id="${id}"]`);
+      if (card) {
+        card.querySelectorAll('.tag-pill').forEach(pill => pill.classList.remove('active'));
+        if (tag) {
+          const activePill = card.querySelector(`.tag-${tag}`);
+          if (activePill) activePill.classList.add('active');
+        }
+      }
+    }
+
+    showToast(`Tagged ${ids.length} candidate(s) as ${tag}.`, 'success');
+  } catch (err) {
+    showToast('Bulk tag failed: ' + err.message, 'error');
+  }
+}
